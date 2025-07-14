@@ -1,6 +1,6 @@
-/// 2025/07/11
-/// 最新追加：敵の弾丸の発射機能の実装が完了しました
-///          game over状態の実装が完了しました
+/// 2025/07/15
+/// 最新追加：stage2の実装が完了しました
+///          treasureの実装が完了しました
 
 #nullable enable
 using GameCanvas;
@@ -18,6 +18,8 @@ using System.Collections.Generic;
 /// プレイヤーの移動操作の実装が完了しています
 /// プレイヤーの弾丸の発射機能の実装が完了しました
 /// 敵の移動とダメージ計算の実装が完了しました
+/// 敵の弾丸の発射機能の実装が完了しました
+/// game over状態の実装が完了しました
 /// </summary>
 public sealed class Game : GameBase
 {
@@ -26,10 +28,8 @@ public sealed class Game : GameBase
 
     int player_x;
     int player_y;
-    int player_stage;
     int player_speed;
     int player_health; // プレイヤーの体力
-    int player_shield; // プレイヤーのシールド
 
     List<float2> player_bullets = new();
     int player_weapon; // 0:
@@ -38,6 +38,16 @@ public sealed class Game : GameBase
     int player_bullet_cooldown; // 弾のクールダウン時間
     int player_bullet_cooldown_timer; // クールダウンタイマー
     int player_bullet_number; // 弾の数
+
+    bool hasTreasure = false;
+    float2 treasure_pos;
+    bool treasure_collected = false;
+
+    bool hasTreasure2 = false;
+    float2 treasure_pos2;
+    bool treasure_collected2 = false;
+
+    int game_stage;
 
     struct Enemy{
         public float2 pos; // 敵の位置
@@ -56,6 +66,7 @@ public sealed class Game : GameBase
     int enemy_kill_count; // 敵を倒した数
 
     List<float2> enemy_bullets = new(); // 敵の弾
+    List<float2>  enemy_bullet_dirs = new();
     int enemy_bullet_speed; // 敵の弾の速度
     int enemy_bullet_cooldown; // 敵の弾のクールダウン時間
     int enemy_bullet_cooldown_timer; // 敵の弾のクールダウンタイマー
@@ -71,15 +82,21 @@ public sealed class Game : GameBase
 
         player_bullets.Clear();
         enemy_bullets.Clear();
+        enemy_bullet_dirs.Clear();
         enemys.Clear();
         game_state = 1; // ゲーム開始状態
+        game_stage = 1;
         player_x = 350;
         player_y = 800;
         player_speed = 3;
         player_health = 1; // プレイヤーの初期体力
-        player_stage = 1; //stage1,2,3,4
         player_weapon =1; //weapon1,2,3
         player_bullet_cooldown_timer = 0; // クールダウンタイマーの初期化
+
+        hasTreasure = false; // 宝物を持っていない状態
+        treasure_collected = false;
+        hasTreasure2 = false; // 宝物2を持っていない状態
+        treasure_collected2 = false;
 
         enemy_stage = 1; // stage1,2,3
         enemy_speed = 1; 
@@ -94,6 +111,8 @@ public sealed class Game : GameBase
         enemy_bullet_cooldown = 400; // 敵の弾のクールダウン時間
         enemy_bullet_cooldown_timer = 0; // 敵の弾の
 
+        time = 0;
+
     }
     Enemy RandomEnemySpawn()
     {
@@ -102,6 +121,12 @@ public sealed class Game : GameBase
         int hp = enemy_health; // 敵の初期体力
         return new Enemy(new float2(x, y), hp);
     }
+    void AddEnemyBullet(float2 pos, float2 dir)
+    {
+        enemy_bullets.Add(pos);
+        enemy_bullet_dirs.Add(math.normalize(dir)); // 确保是单位向量
+    }
+
     /// <summary>
     /// 動きなどの更新処理
     /// </summary>
@@ -109,13 +134,43 @@ public sealed class Game : GameBase
     {
         if (game_state == 1) // ゲームプレイ中
         {
+            time++;
+
+            if (time == 2500){
+                treasure_pos = new float2(UnityEngine.Random.Range(50f, 650f), UnityEngine.Random.Range(100f, 800f));
+                hasTreasure = true;
+                treasure_collected = false;
+            }
+
+            if (time == 5000){
+                treasure_pos2 = new float2(UnityEngine.Random.Range(50f, 650f), UnityEngine.Random.Range(100f, 800f));
+                hasTreasure2 = true;
+                treasure_collected2 = false;
+            }
             PlayerMove();
+
+            if (hasTreasure && !treasure_collected){
+                if (gc.CheckHitRect(treasure_pos.x, treasure_pos.y, 40, 40, player_x, player_y, 50, 60))
+                {
+                    treasure_collected = true;
+                    player_weapon = math.min(player_weapon + 1, 3); // 最大武器阶段为3
+                }
+            }
+
+            if (hasTreasure2 && !treasure_collected2){
+                if (gc.CheckHitRect(treasure_pos2.x, treasure_pos2.y, 40, 40, player_x, player_y, 50, 60))
+                {
+                    treasure_collected2 = true;
+                    player_weapon = math.min(player_weapon + 1, 3); // 最大武器阶段为3
+                }
+            }
+
             PlayerAttack();
             if (player_bullet_cooldown_timer > 0)
             {
                 player_bullet_cooldown_timer--;
             }
-            PlayerStageUpdate();
+            
             PlayerWeaponUpdate();
 
             for (int i = 0; i < player_bullets.Count; i++)
@@ -144,24 +199,57 @@ public sealed class Game : GameBase
                 {
                     enemy_kill_count++;
                     newEnemies.Add(RandomEnemySpawn());
+                    if (game_stage ==1 && enemy_kill_count == 10)
+                    {
+                        game_stage = 2; 
+                        player_health = 2;
+                        enemy_kill_count = 0;
+                        enemy_stage = 2;
+                        EnemyStageUPdate();
+                    }
+                    if (game_stage ==2 && enemy_kill_count == 3)
+                    {
+                        game_stage = 3; 
+                        player_health = 3;
+                        enemy_kill_count = 0;
+                        enemy_stage = 3;
+                        EnemyStageUPdate();
+                    }
                 }
             }
             enemys.RemoveAll(e => e.hp <= 0); 
             enemys.AddRange(newEnemies);
 
             enemy_bullet_cooldown_timer--; // 敵の弾のクールダウンタイマーを減少
-            if (enemy_stage ==1 && enemy_bullet_cooldown_timer <= 0) // 敵の弾を発射
+            if (enemy_bullet_cooldown_timer <= 0) // 敵の弾を発射
             {
-                foreach (var enemy in enemys)
-                {
-                    enemy_bullets.Add(new float2(enemy.pos.x + 25, enemy.pos.y + 20)); 
-                    enemy_bullets.Add(new float2(enemy.pos.x + 25, enemy.pos.y + 60));
+                foreach (var enemy in enemys){
+                    if (enemy_stage ==1)
+                    {
+                        AddEnemyBullet(enemy.pos + new float2(25, 20), new float2(0, 1));
+                        AddEnemyBullet(enemy.pos + new float2(25, 60), new float2(0, 1));
+                    }
+                    if (enemy_stage == 2)
+                    {
+                        float2[] directions = {
+                            new float2(-1, 1), // 左下
+                            new float2(0, 1),  // 正下
+                            new float2(1, 1),  // 右下
+                        };
+
+                        foreach (var dir in directions)
+                        {
+                            AddEnemyBullet(enemy.pos + new float2(25, 20) + dir * 1, dir);
+                            AddEnemyBullet(enemy.pos + new float2(25, 60) + dir * 2, dir);
+                        }
+                    }
                 }
                 enemy_bullet_cooldown_timer = enemy_bullet_cooldown; // クールダウンタイマーをリセット
             }
 
             EnemyBulletMove(); // 敵の弾の移動処理
             EnemyHitPlayer(); // 敵の弾がプレイヤーに当たったかチェック
+
         }
         if (game_state == 2) // ゲームオーバー状態
         {
@@ -191,6 +279,17 @@ public sealed class Game : GameBase
                 gc.FillRect(b.x, b.y, 5, 10);
             }
 
+            if (hasTreasure && !treasure_collected)
+            {
+                gc.SetColor(255, 215, 0); // 金黄色
+                gc.FillRect(treasure_pos.x, treasure_pos.y, 40, 40);
+            }
+            if (hasTreasure2 && !treasure_collected2)
+            {
+                gc.SetColor(255, 215, 0); // 金黄色
+                gc.FillRect(treasure_pos2.x, treasure_pos2.y, 40, 40);
+            }
+
             // 敵の描画
             gc.SetColor(255, 0, 0);
             foreach (var enemy in enemys)
@@ -207,9 +306,11 @@ public sealed class Game : GameBase
 
             gc.SetColor(255, 255, 255);
             gc.SetFontSize(48);
-            gc.DrawString($"Player Stage: {player_stage}", 20, 10);
-            gc.DrawString($"Killed Enemy: {enemy_kill_count}", 20, 45);
-            gc.DrawString($"Player Health: {player_health}", 20, 80);
+            // gc.DrawString($"Player Stage: {player_stage}", 20, 10);
+            gc.DrawString($"Killed Enemy: {enemy_kill_count}", 20, 50);
+            gc.DrawString($"Player Health: {player_health}", 20, 95);
+            gc.DrawString($"Time: {time}", 20, 150);
+            gc.DrawString($"Game Stage: {game_stage}/3", 20, 10);
             gc.DrawImage(GcImage.Panel, 0, 880);
         }
         if (game_state == 2) // ゲームオーバー
@@ -259,18 +360,6 @@ public sealed class Game : GameBase
         }
     }
 
-    void PlayerStageUpdate() {
-        if (player_stage ==1) {
-            player_shield = 1;
-        }
-        if (player_stage == 2) {
-            player_shield = 1;
-        }
-        if (player_stage == 3) {
-            player_shield = 2;
-        }
-    }
-
     void PlayerWeaponUpdate() {
         if (player_weapon == 1) {
             player_bullet_speed = 5;
@@ -279,9 +368,9 @@ public sealed class Game : GameBase
             player_bullet_number = 1;
         }
         if (player_weapon == 2) {
-            player_bullet_speed = 5;
+            player_bullet_speed = 6;
             player_bullet_damage = 1;
-            player_bullet_cooldown = 10;
+            player_bullet_cooldown = 15;
             player_bullet_number = 2;
         }
         if (player_weapon == 3) {
@@ -296,14 +385,17 @@ public sealed class Game : GameBase
         if (enemy_stage == 1) {
             enemy_health = 3;
             enemy_number = 3;
+            enemy_bullet_cooldown = 400;
         }
         if (enemy_stage == 2) {
             enemy_health = 15;
             enemy_number = 2;
+            enemy_bullet_cooldown = 250;
         }
         if (enemy_stage == 3) {
             enemy_health = 35;
             enemy_number = 1;
+            enemy_bullet_cooldown = 200;
         }
     }
 
@@ -335,13 +427,19 @@ public sealed class Game : GameBase
     }
 
     void EnemyBulletMove() {
+        
         for (int i = 0; i < enemy_bullets.Count; i++)
         {
-            float2 b = enemy_bullets[i];
-            b.y += enemy_bullet_speed;
-            enemy_bullets[i] = b;
+            enemy_bullets[i] += enemy_bullet_dirs[i] * enemy_bullet_speed;
         }
-        enemy_bullets.RemoveAll(b => b.y > 1280); // 画面外に出た弾を削除
+        for (int i = enemy_bullets.Count - 1; i >= 0; i--)
+        {
+            if (enemy_bullets[i].y > 1280 || enemy_bullets[i].x < 0 || enemy_bullets[i].x > 720)
+            {
+                enemy_bullets.RemoveAt(i);
+                enemy_bullet_dirs.RemoveAt(i);
+            }
+        }
     }
 
     void EnemyHitPlayer(){
