@@ -1,5 +1,5 @@
 /// 2025/07/16
-/// 最新追加：stage3 completed
+/// 最新追加：stageup debug
 
 #nullable enable
 using GameCanvas;
@@ -21,19 +21,20 @@ using System.Collections.Generic;
 /// game over状態の実装が完了しました
 /// stage2の実装が完了しました
 /// treasureの実装が完了しました
+/// stage3 completed
 /// </summary>
 public sealed class Game : GameBase
 {
     // 変数の宣言
-    int game_state; // ゲームの状態1: プレイ中、2: ゲームオーバー
+    int game_state; 
 
     int player_x;
     int player_y;
     int player_speed;
-    int player_health; // プレイヤーの体力
+    int player_health; 
 
     List<float2> player_bullets = new();
-    int player_weapon; // 0:
+    int player_weapon; 
     int player_bullet_speed; // 弾の速度
     int player_bullet_damage; // 弾のダメージ  
     int player_bullet_cooldown; // 弾のクールダウン時間
@@ -72,6 +73,8 @@ public sealed class Game : GameBase
     int enemy_bullet_cooldown; // 敵の弾のクールダウン時間
     int enemy_bullet_cooldown_timer; // 敵の弾のクールダウンタイマー
 
+    bool stageTransition = false; // 全局变量添加
+
     int time;
 
     /// <summary>
@@ -101,23 +104,26 @@ public sealed class Game : GameBase
 
         enemy_stage = 1; // stage1,2,3
         enemy_speed = 1; 
+        enemy_health = 3; // 敵の初期体力
+        enemy_number = 3; // 敵の初期数 
         enemy_kill_count = 0;
 
-        EnemyStageUPdate();
         for (int i = 0; i < enemy_number; i++)
         {
             enemys.Add(RandomEnemySpawn());
         }
         enemy_bullet_speed = 3; // 敵の弾の速度
         enemy_bullet_cooldown = 400; // 敵の弾のクールダウン時間
-        enemy_bullet_cooldown_timer = 0; // 敵の弾の
+        enemy_bullet_cooldown_timer = 0; 
+
+        stageTransition = false;
 
         time = 0;
 
     }
     Enemy RandomEnemySpawn()
     {
-        float x = UnityEngine.Random.Range(40f, 680f); // 屏幕宽度之内
+        float x = UnityEngine.Random.Range(40f, 680f); 
         float y = UnityEngine.Random.Range(-160f, -60f); // 敵のスポーン位置
         int hp = enemy_health; // 敵の初期体力
         return new Enemy(new float2(x, y), hp);
@@ -125,7 +131,7 @@ public sealed class Game : GameBase
     void AddEnemyBullet(float2 pos, float2 dir)
     {
         enemy_bullets.Add(pos);
-        enemy_bullet_dirs.Add(math.normalize(dir)); // 确保是单位向量
+        enemy_bullet_dirs.Add(math.normalize(dir)); 
     }
 
     /// <summary>
@@ -135,14 +141,17 @@ public sealed class Game : GameBase
     {
         if (game_state == 0) // ゲーム初期化状態
         {
+            gc.PlaySound(GcSound.Juicyloop,GcSoundTrack.BGM1,true);
             if (gc.GetPointerFrameCount(0) ==1)
             {
                 InitGame(); // ゲームを再起動
+                gc.StopSound(GcSoundTrack.BGM1);
                 game_state = 1; // ゲームプレイ状態に戻す
             }
         }
         if (game_state == 1) // ゲームプレイ中
         {
+            gc.PlaySound(GcSound.Loop,GcSoundTrack.BGM2,true);
             time++;
 
             if (time == 2500){
@@ -162,7 +171,7 @@ public sealed class Game : GameBase
                 if (gc.CheckHitRect(treasure_pos.x, treasure_pos.y, 40, 40, player_x, player_y, 50, 60))
                 {
                     treasure_collected = true;
-                    player_weapon = math.min(player_weapon + 1, 3); // 最大武器阶段为3
+                    player_weapon = math.min(player_weapon + 1, 3); 
                 }
             }
 
@@ -170,7 +179,7 @@ public sealed class Game : GameBase
                 if (gc.CheckHitRect(treasure_pos2.x, treasure_pos2.y, 40, 40, player_x, player_y, 50, 60))
                 {
                     treasure_collected2 = true;
-                    player_weapon = math.min(player_weapon + 1, 3); // 最大武器阶段为3
+                    player_weapon = math.min(player_weapon + 1, 3); 
                 }
             }
 
@@ -206,18 +215,30 @@ public sealed class Game : GameBase
                 }
                 if (enemys[i].hp <= 0)
                 {
+                    gc.PlaySound(GcSound.Explode);
                     enemy_kill_count++;
                     newEnemies.Add(RandomEnemySpawn());
-                    if (game_stage ==1 && enemy_kill_count == 10)
+                    if (game_stage ==1 && enemy_kill_count == 4)
                     {
+                        enemys.Clear();
+                        enemy_bullets.Clear();
+                        player_bullets.Clear();
+                        enemy_bullet_dirs.Clear();
+                        stageTransition = true; 
                         game_stage = 2; 
                         player_health = 3;
                         enemy_kill_count = 0;
                         enemy_stage = 2;
                         EnemyStageUPdate();
+                        
                     }
                     if (game_stage ==2 && enemy_kill_count == 3)
                     {
+                        enemys.Clear();
+                        enemy_bullets.Clear();
+                        player_bullets.Clear();
+                        enemy_bullet_dirs.Clear();
+                        stageTransition = true;
                         game_stage = 3; 
                         player_health = 5;
                         enemy_kill_count = 0;
@@ -226,12 +247,23 @@ public sealed class Game : GameBase
                     }
                     if (game_stage ==3 && enemy_kill_count == 1)
                     {
+                        gc.StopSound(GcSoundTrack.BGM2);
                         game_state = 3; // ゲームオーバー状態に移行
                     }
                 }
             }
             enemys.RemoveAll(e => e.hp <= 0); 
-            enemys.AddRange(newEnemies);
+            if (!stageTransition) // ステージ遷移中でない場合のみ新しい敵を追加
+            {
+                enemys.AddRange(newEnemies);
+            }
+            if (stageTransition){
+                for (int i = 0; i < enemy_number; i++)
+                {
+                    enemys.Add(RandomEnemySpawn()); 
+                }
+            }
+            stageTransition = false; // ステージ遷移フラグをリセット
 
             enemy_bullet_cooldown_timer--; // 敵の弾のクールダウンタイマーを減少
             if (enemy_bullet_cooldown_timer <= 0) // 敵の弾を発射
@@ -272,16 +304,20 @@ public sealed class Game : GameBase
         }
         if (game_state == 2) // ゲームオーバー状態
         {
-            if (gc.GetPointerFrameCount(0) ==3)
+            gc.PlaySound(GcSound.Juicyloop,GcSoundTrack.BGM1,true);
+            if (gc.GetPointerFrameCount(0) ==10)
             {
+                gc.StopSound(GcSoundTrack.BGM1);
                 InitGame(); // ゲームを再起動
                 game_state = 1; // ゲームプレイ状態に戻す
             }
         }
         if (game_state == 3) // ゲームクリア状態
         {
-            if (gc.GetPointerFrameCount(0) ==3)
+            gc.PlaySound(GcSound.Juicyloop,GcSoundTrack.BGM1,true);
+            if (gc.GetPointerFrameCount(0) ==10)
             {
+                gc.StopSound(GcSoundTrack.BGM1);
                 InitGame(); // ゲームを再起動
                 game_state = 1; // ゲームプレイ状態に戻す
             }
@@ -297,11 +333,12 @@ public sealed class Game : GameBase
         {
             gc.ClearScreen();
             gc.DrawImage(GcImage.BackGround, 0, 0);
+            gc.DrawImage(GcImage.Title, 0, 0);
             gc.SetColor(255, 255, 255);
             gc.SetFontSize(72);
-            gc.DrawString("Tap to Start", 150, 600);
+            gc.DrawString("Tap to Start", 150, 800);
             gc.SetFontSize(48);
-            gc.DrawString("Press to Restart", 180, 700);
+            gc.DrawString("Press to Restart", 180, 900);
         }
         if (game_state == 1) // ゲームプレイ中
         {
@@ -355,7 +392,7 @@ public sealed class Game : GameBase
             gc.SetFontSize(48);
             // gc.DrawString($"Player Stage: {player_stage}", 20, 10);
             gc.DrawString($"Killed Enemy: {enemy_kill_count}", 20, 50);
-            gc.DrawString($"Player Health: {player_health}", 20, 95);
+            gc.DrawString($"Player Health: {player_health}", 20, 100);
             // gc.DrawString($"Time: {time}", 20, 150);
             gc.DrawString($"Game Stage: {game_stage}/3", 20, 10);
             gc.DrawImage(GcImage.Panel, 0, 880);
@@ -383,20 +420,22 @@ public sealed class Game : GameBase
     }
 
     void PlayerMove (){
-        if (150 < gc.GetPointerX(0) && gc.GetPointerX(0) < 280) {
-            if (1110 < gc.GetPointerY(0) && gc.GetPointerY(0) < 1280){
-                player_y += player_speed;
+        if (gc.GetPointerFrameCount(0) > 0){  // ポインターが押されていない場合は何もしない
+            if (150 < gc.GetPointerX(0) && gc.GetPointerX(0) < 280) {
+                if (1110 < gc.GetPointerY(0) && gc.GetPointerY(0) < 1280){
+                    player_y += player_speed;
+                }
+                if (880 < gc.GetPointerY(0) && gc.GetPointerY(0) < 1020) {
+                    player_y -= player_speed;
+                }
             }
-            if (880 < gc.GetPointerY(0) && gc.GetPointerY(0) < 1020) {
-                player_y -= player_speed;
-            }
-        }
-        if (1020 < gc.GetPointerY(0) && gc.GetPointerY(0) < 1110) {
-            if (0 < gc.GetPointerX(0) && gc.GetPointerX(0) < 190){
-                player_x -= player_speed;
-            }
-            if (190 < gc.GetPointerX(0) && gc.GetPointerX(0) < 360) {
-                player_x += player_speed;
+            if (1020 < gc.GetPointerY(0) && gc.GetPointerY(0) < 1110) {
+                if (0 < gc.GetPointerX(0) && gc.GetPointerX(0) < 190){
+                    player_x -= player_speed;
+                }
+                if (190 < gc.GetPointerX(0) && gc.GetPointerX(0) < 360) {
+                    player_x += player_speed;
+                }
             }
         }
     }
@@ -412,6 +451,7 @@ public sealed class Game : GameBase
                     float2 bulletPosition = new float2(player_x + 25, player_y + (i * 30));
                     player_bullets.Add(bulletPosition);
                 }
+                gc.PlaySound(GcSound.Shoot); // 弾を発射する音を再生
                 player_bullet_cooldown_timer = player_bullet_cooldown; // クールダウンタイマーを設定
             }
         }
@@ -445,12 +485,12 @@ public sealed class Game : GameBase
             enemy_bullet_cooldown = 400;
         }
         if (enemy_stage == 2) {
-            enemy_health = 15;
+            enemy_health = 12;
             enemy_number = 2;
             enemy_bullet_cooldown = 250;
         }
         if (enemy_stage == 3) {
-            enemy_health = 50;
+            enemy_health = 30;
             enemy_number = 1;
             enemy_bullet_cooldown = 200;
         }
@@ -532,6 +572,8 @@ public sealed class Game : GameBase
             if (player_health <= 0)
             {
                 // プレイヤーが倒された場合の処理
+                gc.PlaySound(GcSound.Explode); // ゲームオーバーの音を再生
+                gc.StopSound(GcSoundTrack.BGM2);
                 game_state = 2; // ゲームオーバー状
             }
         }

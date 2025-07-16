@@ -1,0 +1,50 @@
+fileFormatVersion: 2
+guid: 30559fd9d0f35224e8f426390559df17
+AudioImporter:
+  externalObjects: {}
+  serializedVersion: 7
+  defaultSettings:
+    serializedVersion: 2
+    loadType: 2
+    sampleRateSetting: 1
+    sampleRateOverride: 0
+    compressionFormat: 1
+    quality: 0
+    conversionMode: 0
+    preloadAudioData: 1
+  platformSettingOverrides:
+    1:
+      serializedVersion: 2
+      loadType: 2
+      sampleRateSetting: 1
+      sampleRateOverride: 0
+      compressionFormat: 1
+      quality: 0
+      conversionMode: 0
+      preloadAudioData: 1
+    4:
+      serializedVersion: 2
+      loadType: 2
+      sampleRateSetting: 1
+      sampleRateOverride: 0
+      compressionFormat: 1
+      quality: 0
+      conversionMode: 0
+      preloadAudioData: 1
+    7:
+      serializedVersion: 2
+      loadType: 2
+      sampleRateSetting: 1
+      sampleRateOverride: 0
+      compressionFormat: 1
+      quality: 0
+      conversionMode: 0
+      preloadAudioData: 1
+  forceToMono: 0
+  normalize: 1
+  loadInBackground: 0
+  ambisonic: 0
+  3D: 1
+  userData: GameCanvas AudioImporter 1.2
+  assetBundleName: 
+  assetBundleVariant: 
