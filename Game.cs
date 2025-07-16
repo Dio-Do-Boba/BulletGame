@@ -1,6 +1,5 @@
-/// 2025/07/15
-/// 最新追加：stage2の実装が完了しました
-///          treasureの実装が完了しました
+/// 2025/07/16
+/// 最新追加：stage3 completed
 
 #nullable enable
 using GameCanvas;
@@ -20,6 +19,8 @@ using System.Collections.Generic;
 /// 敵の移動とダメージ計算の実装が完了しました
 /// 敵の弾丸の発射機能の実装が完了しました
 /// game over状態の実装が完了しました
+/// stage2の実装が完了しました
+/// treasureの実装が完了しました
 /// </summary>
 public sealed class Game : GameBase
 {
@@ -84,7 +85,7 @@ public sealed class Game : GameBase
         enemy_bullets.Clear();
         enemy_bullet_dirs.Clear();
         enemys.Clear();
-        game_state = 1; // ゲーム開始状態
+        game_state = 0; // ゲーム開始状態
         game_stage = 1;
         player_x = 350;
         player_y = 800;
@@ -132,6 +133,14 @@ public sealed class Game : GameBase
     /// </summary>
     public override void UpdateGame()
     {
+        if (game_state == 0) // ゲーム初期化状態
+        {
+            if (gc.GetPointerFrameCount(0) ==1)
+            {
+                InitGame(); // ゲームを再起動
+                game_state = 1; // ゲームプレイ状態に戻す
+            }
+        }
         if (game_state == 1) // ゲームプレイ中
         {
             time++;
@@ -202,7 +211,7 @@ public sealed class Game : GameBase
                     if (game_stage ==1 && enemy_kill_count == 10)
                     {
                         game_stage = 2; 
-                        player_health = 2;
+                        player_health = 3;
                         enemy_kill_count = 0;
                         enemy_stage = 2;
                         EnemyStageUPdate();
@@ -210,10 +219,14 @@ public sealed class Game : GameBase
                     if (game_stage ==2 && enemy_kill_count == 3)
                     {
                         game_stage = 3; 
-                        player_health = 3;
+                        player_health = 5;
                         enemy_kill_count = 0;
                         enemy_stage = 3;
                         EnemyStageUPdate();
+                    }
+                    if (game_stage ==3 && enemy_kill_count == 1)
+                    {
+                        game_state = 3; // ゲームオーバー状態に移行
                     }
                 }
             }
@@ -243,6 +256,12 @@ public sealed class Game : GameBase
                             AddEnemyBullet(enemy.pos + new float2(25, 60) + dir * 2, dir);
                         }
                     }
+                    if (enemy_stage == 3)
+                    {
+                        int[] bulletCounts = { 12, 16, 20, 24 }; // 弾の数の候補
+                        int randomCount = bulletCounts[UnityEngine.Random.Range(0, bulletCounts.Length)];
+                        ShootCircularBullet(enemy, randomCount);
+                    }
                 }
                 enemy_bullet_cooldown_timer = enemy_bullet_cooldown; // クールダウンタイマーをリセット
             }
@@ -259,6 +278,14 @@ public sealed class Game : GameBase
                 game_state = 1; // ゲームプレイ状態に戻す
             }
         }
+        if (game_state == 3) // ゲームクリア状態
+        {
+            if (gc.GetPointerFrameCount(0) ==3)
+            {
+                InitGame(); // ゲームを再起動
+                game_state = 1; // ゲームプレイ状態に戻す
+            }
+        }
     }
 
     /// <summary>
@@ -266,6 +293,16 @@ public sealed class Game : GameBase
     /// </summary>
     public override void DrawGame()
     {
+        if (game_state == 0) // ゲーム初期化状態
+        {
+            gc.ClearScreen();
+            gc.DrawImage(GcImage.BackGround, 0, 0);
+            gc.SetColor(255, 255, 255);
+            gc.SetFontSize(72);
+            gc.DrawString("Tap to Start", 150, 600);
+            gc.SetFontSize(48);
+            gc.DrawString("Press to Restart", 180, 700);
+        }
         if (game_state == 1) // ゲームプレイ中
         {
             gc.ClearScreen();
@@ -279,29 +316,39 @@ public sealed class Game : GameBase
                 gc.FillRect(b.x, b.y, 5, 10);
             }
 
-            if (hasTreasure && !treasure_collected)
-            {
-                gc.SetColor(255, 215, 0); // 金黄色
-                gc.FillRect(treasure_pos.x, treasure_pos.y, 40, 40);
-            }
-            if (hasTreasure2 && !treasure_collected2)
-            {
-                gc.SetColor(255, 215, 0); // 金黄色
-                gc.FillRect(treasure_pos2.x, treasure_pos2.y, 40, 40);
-            }
-
-            // 敵の描画
-            gc.SetColor(255, 0, 0);
-            foreach (var enemy in enemys)
-            {
-                gc.DrawImage(GcImage.Enemy1, enemy.pos.x, enemy.pos.y);
-                gc.DrawString($"HP:{enemy.hp}", enemy.pos.x - 20, enemy.pos.y - 40);
-            }
-
             gc.SetColor(0, 255, 0);
             foreach (var bullet in enemy_bullets)
             {
                 gc.FillRect(bullet.x, bullet.y, 5, 10);
+            }
+
+            if (hasTreasure && !treasure_collected)
+            {
+                gc.DrawImage(GcImage.Treasure, treasure_pos.x, treasure_pos.y);
+            }
+            if (hasTreasure2 && !treasure_collected2)
+            {
+                gc.DrawImage(GcImage.Treasure, treasure_pos2.x, treasure_pos2.y);
+            }
+
+            // 敵の描画
+            if (enemy_stage == 1 || enemy_stage == 2)
+            {
+                gc.SetColor(255, 0, 0);
+                foreach (var enemy in enemys)
+                {
+                    gc.DrawImage(GcImage.Enemy1, enemy.pos.x, enemy.pos.y);
+                    gc.DrawString($"HP:{enemy.hp}", enemy.pos.x - 20, enemy.pos.y - 40);
+                }
+            }
+            if (enemy_stage == 3)
+            {
+                gc.SetColor(255, 0, 0);
+                foreach (var enemy in enemys)
+                {
+                    gc.DrawImage(GcImage.Boss, enemy.pos.x, enemy.pos.y);
+                    gc.DrawString($"HP:{enemy.hp}", enemy.pos.x, enemy.pos.y - 40);
+                }
             }
 
             gc.SetColor(255, 255, 255);
@@ -309,7 +356,7 @@ public sealed class Game : GameBase
             // gc.DrawString($"Player Stage: {player_stage}", 20, 10);
             gc.DrawString($"Killed Enemy: {enemy_kill_count}", 20, 50);
             gc.DrawString($"Player Health: {player_health}", 20, 95);
-            gc.DrawString($"Time: {time}", 20, 150);
+            // gc.DrawString($"Time: {time}", 20, 150);
             gc.DrawString($"Game Stage: {game_stage}/3", 20, 10);
             gc.DrawImage(GcImage.Panel, 0, 880);
         }
@@ -320,6 +367,16 @@ public sealed class Game : GameBase
             gc.SetColor(255, 255, 255);
             gc.SetFontSize(72);
             gc.DrawString("Game Over", 200, 600);
+            gc.SetFontSize(48);
+            gc.DrawString("Press to Restart", 180, 700);
+        }
+        if (game_state == 3) // ゲームクリア
+        {
+            gc.ClearScreen();
+            gc.DrawImage(GcImage.BackGround, 0, 0);
+            gc.SetColor(255, 255, 255);
+            gc.SetFontSize(72);
+            gc.DrawString("Game Clear", 200, 600);
             gc.SetFontSize(48);
             gc.DrawString("Press to Restart", 180, 700);
         }
@@ -374,10 +431,10 @@ public sealed class Game : GameBase
             player_bullet_number = 2;
         }
         if (player_weapon == 3) {
-            player_bullet_speed = 6;
-            player_bullet_damage = 2;
+            player_bullet_speed = 7;
+            player_bullet_damage = 1;
             player_bullet_cooldown = 10;
-            player_bullet_number = 3;
+            player_bullet_number = 2;
         }
     }
 
@@ -393,18 +450,33 @@ public sealed class Game : GameBase
             enemy_bullet_cooldown = 250;
         }
         if (enemy_stage == 3) {
-            enemy_health = 35;
+            enemy_health = 50;
             enemy_number = 1;
             enemy_bullet_cooldown = 200;
         }
     }
 
     void EnemyMove() {
-        for (int i = 0; i < enemys.Count; i++)
-        {
-            Enemy e = enemys[i];
-            e.pos.y += enemy_speed;
-            enemys[i] = e;
+        if (enemy_stage == 1 || enemy_stage == 2){
+            for (int i = 0; i < enemys.Count; i++)
+            {
+                Enemy e = enemys[i];
+                e.pos.y += enemy_speed;
+                enemys[i] = e;
+            }
+        }
+        if (enemy_stage == 3){
+            for (int i = 0; i < enemys.Count; i++)
+            {
+                Enemy e = enemys[i];
+                e.pos.y += enemy_speed;
+                if (e.pos.y > 580) // 敵が画面外に出たら
+                {
+                    e.pos.x = UnityEngine.Random.Range(40f, 680f); // 新しいx座標をランダムに設定
+                    e.pos.y = UnityEngine.Random.Range(20f, 400f); // y座標を画面上部にリセット
+                }
+                enemys[i] = e;
+            }
         }
     }
 
@@ -415,7 +487,13 @@ public sealed class Game : GameBase
             for (int j = 0; j < player_bullets.Count; j++)
             {
                 float2 b = player_bullets[j];
-                if (gc.CheckHitRect(b.x, b.y, 5, 10, e.pos.x, e.pos.y, 50, 60))
+                if (enemy_stage != 3 && gc.CheckHitRect(b.x, b.y, 5, 10, e.pos.x, e.pos.y, 50, 60))
+                {
+                    e.hp -= player_bullet_damage;
+                    player_bullets.RemoveAt(j);
+                    break;
+                }
+                if (enemy_stage == 3 && gc.CheckHitRect(b.x, b.y, 5, 10, e.pos.x, e.pos.y, 100, 120))
                 {
                     e.hp -= player_bullet_damage;
                     player_bullets.RemoveAt(j);
@@ -456,6 +534,15 @@ public sealed class Game : GameBase
                 // プレイヤーが倒された場合の処理
                 game_state = 2; // ゲームオーバー状
             }
+        }
+    }
+
+    void ShootCircularBullet(Enemy enemy, int count){
+        for (int i = 0; i < count; i++)
+        {
+            float angle = math.radians(360f / count * i); // 每个弹的角度
+            float2 dir = new float2(math.cos(angle), math.sin(angle));
+            AddEnemyBullet(enemy.pos +  new float2(50, 100) + dir, dir);
         }
     }
 }
